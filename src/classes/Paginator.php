@@ -6,19 +6,25 @@ class Paginator
 {
     public int $totalPages;
     public int $recordOffset;
+    public int $recordsPerPage;
+    public int $totalRecords;
+    public int $currentPage;
 
     public function __construct(
-        public int $recordsPerPage,
-        public int $totalRecords,
-        public int $currentPage = 1,
+        int $recordsPerPage,
+        int $totalRecords,
+        int $currentPage = 1
     ) {
+        $this->recordsPerPage = $recordsPerPage;
+        $this->totalRecords = $totalRecords;
         $this->totalPages = (int) ceil($totalRecords / $recordsPerPage);
 
-        if ($currentPage < 1) {
-            $this->currentPage = 1;
+        $this->currentPage = $currentPage < 1 ? 1 : $currentPage;
+        if ($this->currentPage > $this->totalPages) {
+            $this->currentPage = $this->totalPages;
         }
 
-        $this->recordOffset = ($this->currentPage - 1) * $this->recordsPerPage;
+        $this->recordOffset = ($this->currentPage - 1) * $recordsPerPage;
     }
 
     public function getPrevPage(): int|bool
@@ -28,7 +34,9 @@ class Paginator
 
     public function getNextPage(): int|bool
     {
-        return $this->currentPage < $this->totalPages ? $this->currentPage + 1 : false;
+        return $this->currentPage < $this->totalPages
+            ? $this->currentPage + 1
+            : false;
     }
 
     public function getPages(int $length = 3): array
