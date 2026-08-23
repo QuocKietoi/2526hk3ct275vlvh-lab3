@@ -1,6 +1,23 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 
+use CT275\Labs\Contact;
+use CT275\Labs\Paginator;
+
+$contact = new Contact($PDO);
+
+$limit = (isset($_GET['limit']) && is_numeric($_GET['limit'])) ?
+    (int)$_GET['limit'] : 5;
+$page = (isset($_GET['page']) && is_numeric($_GET['page'])) ?
+    (int)$_GET['page'] : 1;
+$paginator = new Paginator(
+    totalRecords: $contact->count(),
+    recordsPerPage: $limit,
+    currentPage: $page
+);
+$contacts = $contact->paginate($paginator->recordOffset, $paginator->recordsPerPage);
+$pages = $paginator->getPages(length: 3);
+
 include_once __DIR__ . '/../src/partials/header.php';
 ?>
 
@@ -26,6 +43,7 @@ include_once __DIR__ . '/../src/partials/header.php';
         <table id="contacts" class="table table-striped table-bordered">
           <thead>
             <tr>
+              <th scope="col">Avatar</th>
               <th scope="col">Name</th>
               <th scope="col">Phone</th>
               <th scope="col">Date Created</th>
@@ -34,7 +52,33 @@ include_once __DIR__ . '/../src/partials/header.php';
             </tr>
           </thead>
           <tbody>
-
+            <?php foreach ($contacts as $contact): ?>
+            <tr>
+               <td>
+                <?php if ($contact->avatar): ?>
+                  <img src="/<?= html_escape($contact->avatar) ?>" alt="Avatar" style="width:48px;height:48px;object-fit:cover;border-radius:50%;">
+                <?php else: ?>
+                  <span class="text-muted">No avatar</span>
+                <?php endif ?>
+              </td>
+              <td><?= html_escape($contact->name) ?></td>
+              <td><?= html_escape($contact->phone) ?></td>
+              <td><?= html_escape(date("d-m-Y", strtotime($contact->created_at))) ?></td>
+              <td><?= html_escape($contact->notes) ?></td>
+              <td class="d-flex justify-content-center">
+                <a href="/edit.php?id=<?= $contact->id ?>"
+                  class="btn btn-xs btn-warning">
+                  <i alt="Edit" class="fa fa-pencil"></i> Edit
+                </a>
+                <form class="ms-1" action="/delete.php" method="POST">
+                  <input type="hidden" name="id" value="<?= $contact->id ?>">
+                  <button type="submit" class="btn btn-xs btn-danger" name="delete-contact">
+                    <i alt="Delete" class="fa fa-trash"></i> Delete
+                  </button>
+                </form>
+              </td>
+            </tr>
+            <?php endforeach ?>
           </tbody>
         </table>
         <!-- Table Ends Here -->
@@ -42,22 +86,25 @@ include_once __DIR__ . '/../src/partials/header.php';
         <!-- Pagination -->
         <nav class="d-flex justify-content-center">
           <ul class="pagination">
-            <li class="page-item">
-              <a role="button" class="page-link">
+            <li class="page-item<?= $paginator->getPrevPage() ? '' : ' disabled' ?>">
+              <a role="button"
+                href="/?page=<?= $paginator->getPrevPage() ?>&limit=<?= $limit ?>"
+                class="page-link">
                 <span>&laquo;</span>
               </a>
             </li>
-            <li class="page-item">
-              <a role="button" class="page-link">1</a>
+
+            <?php foreach ($pages as $p) : ?>
+            <li class="page-item<?= $paginator->currentPage == $p ? ' active' : '' ?>">
+              <a role="button" href="/?page=<?= $p ?>&limit=<?= $limit ?>"
+                class="page-link"><?= $p ?></a>
             </li>
-            <li class="page-item active">
-              <a role="button" class="page-link">2</a>
-            </li>
-            <li class="page-item">
-              <a role="button" class="page-link">3</a>
-            </li>
-            <li class="page-item">
-              <a role="button" class="page-link">
+            <?php endforeach ?>
+
+            <li class="page-item<?= $paginator->getNextPage() ? '' : ' disabled' ?>">
+              <a role="button"
+                href="/?page=<?= $paginator->getNextPage() ?>&limit=<?= $limit ?>"
+                class="page-link">
                 <span>&raquo;</span>
               </a>
             </li>
@@ -86,6 +133,38 @@ include_once __DIR__ . '/../src/partials/header.php';
 
   <?php include_once __DIR__ . '/../src/partials/footer.php' ?>
   <script>
+    const deleteButtons = document.querySelectorAll('button[name="delete-contact"]');
+    deleteButtons.forEach(button => {
+      button.addEventListener('click', function (e) {
+        e.preventDefault();
+
+        const form = button.closest('form');
+        const nameTd = button.closest('tr').querySelector('td:first-child');
+        if (nameTd) {
+          document.querySelector('.modal-body').textContent =
+            `Do you want to delete "${nameTd.textContent}"?`;
+        }
+
+        const submitForm = function () {
+          form.submit();
+        };
+
+        document.getElementById('delete').addEventListener('click', submitForm, {
+          once: true
+        });
+
+        const modalEl = document.getElementById('delete-confirm');
+        modalEl.addEventListener('hidden.bs.modal', function () {
+          document.getElementById('delete').removeEventListener('click', submitForm);
+        });
+
+        const confirmModal = new bootstrap.Modal(modalEl, {
+          backdrop: 'static',
+          keyboard: false
+        });
+        confirmModal.show();
+      });
+    });
   </script>
 </body>
 

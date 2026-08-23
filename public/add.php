@@ -1,6 +1,37 @@
 <?php
 require_once __DIR__ . '/../src/bootstrap.php';
 
+use CT275\Labs\Contact;
+
+$errors = [];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $contactData = [
+    'name' => $_POST['name'] ?? '',
+    'phone' => $_POST['phone'] ?? '',
+    'notes' => $_POST['notes'] ?? '',
+  ];
+
+  $contact = new Contact($PDO);
+  $errors = $contact->validate($contactData);
+
+  if (empty($errors)) {
+    $avatarPath = null;
+    if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+      $ext = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
+      $filename = uniqid('avatar_') . '.' . $ext;
+      $destination = __DIR__ . '/uploads/' . $filename;
+      if (move_uploaded_file($_FILES['avatar']['tmp_name'], $destination)) {
+        $avatarPath = 'uploads/' . $filename;
+      }
+    }
+
+    $contactData['avatar'] = $avatarPath;
+    $contact->fill($contactData);
+    $contact->save() && redirect('/');
+  }
+}
+
 include_once __DIR__ . '/../src/partials/header.php';
 ?>
 
@@ -18,7 +49,7 @@ include_once __DIR__ . '/../src/partials/header.php';
     <div class="row">
       <div class="col-12">
 
-        <form method="post" class="col-md-6 offset-md-3">
+        <form method="post" enctype="multipart/form-data" class="col-md-6 offset-md-3">
 
           <!-- Name -->
           <div class="mb-3">
@@ -56,6 +87,13 @@ include_once __DIR__ . '/../src/partials/header.php';
             <?php endif ?>
           </div>
 
+          <!-- Avatar -->
+          <div class="mb-3">
+            <label for="avatar" class="form-label">Avatar</label>
+            <input type="file" name="avatar" accept="image/*" class="form-control" id="avatar" onchange="previewAvatar(this)" />
+            <img id="avatar-preview" src="" alt="Preview" class="mt-2 rounded" style="max-width: 120px; display: none;" />
+          </div>
+
           <!-- Submit -->
           <button type="submit" name="submit" class="btn btn-primary">Add Contact</button>
         </form>
@@ -66,6 +104,21 @@ include_once __DIR__ . '/../src/partials/header.php';
   </div>
 
   <?php include_once __DIR__ . '/../src/partials/footer.php' ?>
+  <script>
+    function previewAvatar(input) {
+      const preview = document.getElementById('avatar-preview');
+      if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          preview.src = e.target.result;
+          preview.style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+      } else {
+        preview.style.display = 'none';
+      }
+    }
+  </script>
 </body>
 
 </html>

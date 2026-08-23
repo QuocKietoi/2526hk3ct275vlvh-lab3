@@ -12,6 +12,7 @@ class Contact
   public $name;
   public $phone;
   public $notes;
+  public $avatar;
   public $created_at;
   public $updated_at;
 
@@ -25,6 +26,7 @@ class Contact
     $this->name = $data['name'] ?? '';
     $this->phone = $data['phone'] ?? '';
     $this->notes = $data['notes'] ?? '';
+    $this->avatar = $data['avatar'] ?? $this->avatar;
     return $this;
   }
 
@@ -51,5 +53,112 @@ class Contact
     }
 
     return $errors;
+  }
+
+  public function all(): array
+  {
+    $contacts = [];
+
+    $statement = $this->db->prepare('select * from contacts');
+    $statement->execute();
+    while ($row = $statement->fetch()) {
+      $contact = new Contact($this->db);
+      $contact->fillFromDbRow($row);
+      $contacts[] = $contact;
+    }
+
+    return $contacts;
+  }
+
+  protected function fillFromDbRow(array $row): Contact
+  {
+    $this->id = $row['id'];
+    $this->name = $row['name'];
+    $this->phone = $row['phone'];
+    $this->notes = $row['notes'];
+    $this->avatar = $row['avatar'];
+    $this->created_at = $row['created_at'];
+    $this->updated_at = $row['updated_at'];
+
+    return $this;
+  }
+
+  public function count(): int
+  {
+    $statement = $this->db->prepare('select count(*) from contacts');
+    $statement->execute();
+    return $statement->fetchColumn();
+  }
+
+  public function paginate(int $offset = 0, int $limit = 10): array
+  {
+    $contacts = [];
+
+    $statement = $this->db->prepare('select * from contacts limit :limit offset :offset');
+    $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $statement->execute();
+    while ($row = $statement->fetch()) {
+      $contact = new Contact($this->db);
+      $contact->fillFromDbRow($row);
+      $contacts[] = $contact;
+    }
+
+    return $contacts;
+  }
+
+  public function find(int $id): ?Contact
+  {
+    $statement = $this->db->prepare('select * from contacts where id = :id');
+    $statement->execute(['id' => $id]);
+
+    if ($row = $statement->fetch()) {
+      $this->fillFromDbRow($row);
+      return $this;
+    }
+
+    return null;
+  }
+
+  public function save(): bool
+  {
+    $result = false;
+
+    if ($this->id > 0) {
+      $statement = $this->db->prepare(
+        'update contacts set name = :name,
+        phone = :phone, notes = :notes, avatar = :avatar, updated_at = now()
+        where id = :id'
+      );
+      $result = $statement->execute([
+        'name' => $this->name,
+        'phone' => $this->phone,
+        'notes' => $this->notes,
+        'avatar' => $this->avatar,
+        'id' => $this->id
+      ]);
+    } else {
+      $statement = $this->db->prepare(
+        'insert into contacts (name, phone, notes, avatar, created_at, updated_at)
+        values (:name, :phone, :notes, :avatar, now(), now())'
+      );
+      $result = $statement->execute([
+        'name' => $this->name,
+        'phone' => $this->phone,
+        'notes' => $this->notes,
+        'avatar' => $this->avatar
+      ]);
+      if ($result) {
+        $this->id = $this->db->lastInsertId();
+      }
+    }
+
+    return $result;
+  }
+
+  public function delete(): bool
+  {
+    $statement = $this->db->prepare('delete from contacts where id = :id');
+    return $statement->execute(['id' => $this->id]);
   }
 }
